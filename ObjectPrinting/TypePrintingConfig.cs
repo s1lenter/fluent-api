@@ -2,15 +2,17 @@ using System;
 
 namespace ObjectPrinting;
 
-public class TypePrintingConfig<TOwner, TPropType>(PrintingConfig<TOwner> config)
-    : ITypePrintingConfig<TOwner, TPropType>
+public class TypePrintingConfig<TOwner, TPropType> : ITypePrintingConfig<TOwner, TPropType>
 {
-    private PrintingConfig<TOwner> Config { get; } = config;
+    private readonly PrintingConfig<TOwner> _parentConfig;
 
-    public PrintingConfig<TOwner> Using(Func<TPropType, string> func)
+    public TypePrintingConfig(PrintingConfig<TOwner> parentConfig)
     {
-        Config.AddTypeSerializer(func);
+        _parentConfig = parentConfig;
+    }
 
-        return Config;
+    public PrintingConfig<TOwner> Using(Func<TPropType, string> serializer)
+    {
+        return _parentConfig.WithTypeSerializer(serializer);
     }
 }

@@ -2,7 +2,7 @@ using System;
 
 namespace ObjectPrinting;
 
-public interface IPropertyPrintingConfig<out TOwner, TPropType>
+public interface IPropertyPrintingConfig<TOwner, TPropType>
 {
-    public PrintingConfig<TPropType> Using(Func<TOwner, string> func);
+    PrintingConfig<TOwner> Using(Func<TPropType, string> serializer);
 }

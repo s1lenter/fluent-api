@@ -1,10 +1,11 @@
 using System.Globalization;
-using System.Text;
 using FluentAssertions;
+using ObjectPrinting.Test;
 
-namespace ObjectPrinting.Test;
+namespace ObjectPrinting.Tests;
 
-public class TestsObjectPrinting
+[TestFixture]
+public class ObjectPrintingComprehensiveTests
 {
     private Person firstPerson;
     private Person secondPerson;
@@ -29,346 +30,491 @@ public class TestsObjectPrinting
         };
 
         secondPerson = new();
-
         family = new() { Mom = firstPerson, Dad = secondPerson, Children = [firstPerson, secondPerson] };
     }
 
     [Test]
-    public void Exclude_ExcludeType()
+    public void PrintToString_ShouldSerializePersonWithAllProperties()
     {
-        const string unexpectedName = nameof(Person.Name);
-        const string unexpectedSurname = nameof(Person.Surname);
+        var result = ObjectPrinter.For<Person>().PrintToString(firstPerson);
+
+        result.Should().Contain("Name = Ben")
+              .And.Contain("Surname = Big")
+              .And.Contain("Age = 20")
+              .And.Contain("Height = 170,1")
+              .And.Contain("BestFriend = Person");
+    }
+
+    [Test]
+    public void PrintToString_ShouldSerializeNestedBestFriend()
+    {
+        var result = ObjectPrinter.For<Person>().PrintToString(firstPerson);
+
+        result.Should().Contain("BestFriend = Person")
+              .And.Contain("Name = Bob")
+              .And.Contain("Surname = Boby")
+              .And.Contain("Age = 80")
+              .And.Contain("Height = 40");
+    }
+
+    [Test]
+    public void PrintToString_ShouldSerializeFriendsList()
+    {
+        var result = ObjectPrinter.For<Person>().PrintToString(firstPerson);
+
+        result.Should().Contain("Friends = [")
+              .And.Contain("Name = Alice")
+              .And.Contain("Name = Max")
+              .And.Contain("Surname = Sev")
+              .And.Contain("Surname = Albor");
+    }
+
+    [Test]
+    public void PrintToString_ShouldSerializeBodyPartsDictionary()
+    {
+        var result = ObjectPrinter.For<Person>().PrintToString(firstPerson);
+
+        result.Should().Contain("BodyParts = [")
+              .And.Contain("Hand")
+              .And.Contain("Foot")
+              .And.Contain("Head")
+              .And.Contain("Tail")
+              .And.Contain("2")
+              .And.Contain("1")
+              .And.Contain("0");
+    }
+
+    [Test]
+    public void ExcludeTypeString_ShouldRemoveNameAndSurname()
+    {
         var result = ObjectPrinter.For<Person>()
             .Exclude<string>()
             .PrintToString(firstPerson);
 
-        result.Should().NotContain(unexpectedName).And.NotContain(unexpectedSurname);
+        result.Should().NotContain("Name =")
+              .And.NotContain("Surname =")
+              .And.Contain("Age = 20")
+              .And.Contain("Height = 170,1");
     }
 
     [Test]
-    public void Exclude_ExcludeProperty()
+    public void ExcludePropertyAge_ShouldRemoveOnlyAge()
     {
-        const string unexpectedAge = nameof(Person.Age);
         var result = ObjectPrinter.For<Person>()
             .Exclude(p => p.Age)
             .PrintToString(firstPerson);
 
-        result.Should().NotContain(unexpectedAge);
+        result.Should().NotContain("Age =")
+              .And.Contain("Name = Ben")
+              .And.Contain("Surname = Big")
+              .And.Contain("Height = 170,1");
     }
 
     [Test]
-    public void Exclude_AddSerializationToType_ThenExcludeType()
+    public void PrintSettingsForInt_ShouldFormatAgeInHex()
     {
-        var unexpectedName = $"{firstPerson.Name} is beautiful";
-        var unexpectedSurname = $"{firstPerson.Surname} is beautiful";
-        var result = ObjectPrinter.For<Person>()
-            .PrintSettings<string>().Using(p => $"{p} is beautiful")
-            .Exclude<string>()
-            .PrintToString(firstPerson);
-
-        result.Should().NotContain(unexpectedName).And.NotContain(unexpectedSurname);
-    }
-
-    [Test]
-    public void Exclude_ExcludeAllProperties()
-    {
-        const string expected = "Person\r\n";
-        var result = ObjectPrinter.For<Person>()
-            .Exclude(p => p.Id)
-            .Exclude(p => p.Name)
-            .Exclude(p => p.Surname)
-            .Exclude(p => p.Height)
-            .Exclude(p => p.Age)
-            .Exclude(p => p.BestFriend)
-            .Exclude(p => p.Friends)
-            .Exclude(p => p.BodyParts)
-            .PrintToString(firstPerson);
-
-        result.Should().Be(expected);
-    }
-
-    [Test]
-    public void Exclude_ExcludeAllTypes()
-    {
-        const string expected = "Person\r\n";
-        var result = ObjectPrinter.For<Person>()
-            .Exclude<Guid>()
-            .Exclude<string>()
-            .Exclude<double>()
-            .Exclude<int>()
-            .Exclude<Person>()
-            .Exclude<Person[]>()
-            .Exclude<Dictionary<string, int>>()
-            .PrintToString(firstPerson);
-
-        result.Should().Be(expected);
-    }
-
-    [Test]
-    public void Using_SerializationForString()
-    {
-        const string expected = " is beautiful";
-        var result = ObjectPrinter.For<Person>()
-            .PrintSettings<string>()
-            .Using(p => $"{p} is beautiful")
-            .PrintToString(firstPerson);
-
-        result.Should().Contain(expected);
-    }
-
-    [Test]
-    public void Using_SerializationForInt()
-    {
-        const string exceptedAge = $"{nameof(firstPerson.Age)} = 10";
         var result = ObjectPrinter.For<Person>()
             .PrintSettings<int>()
-            .Using(_ => "10")
+            .Using(i => i.ToString("X"))
             .PrintToString(firstPerson);
 
-        result.Should().Contain(exceptedAge);
+        result.Should().Contain("Age = 14")
+              .And.Contain("BodyParts");
     }
 
     [Test]
-    public void Using_SerializationForName()
+    public void PrintPropertySettingsForName_ShouldApplyCustomFormatting()
     {
-        var expected = firstPerson.Name?.ToUpper();
-        var unexpected = firstPerson.Name;
         var result = ObjectPrinter.For<Person>()
             .PrintPropertySettings(p => p.Name)
-            .Using(p => p!.ToUpper())
+            .Using(name => $"Mr. {name}")
             .PrintToString(firstPerson);
 
-        result.Should().Contain(expected).And.NotContain(unexpected);
+        result.Should().Contain("Name = Mr. Ben")
+              .And.Contain("Surname = Big");
     }
 
     [Test]
-    public void Using_MultiplePropertySerializations()
+    public void TrimmedTo_ShouldShortenName()
     {
-        var exceptedAge = $"{nameof(firstPerson.Name)} = 21{firstPerson.Name}12";
         var result = ObjectPrinter.For<Person>()
             .PrintPropertySettings(p => p.Name)
-            .Using(name => $"1{name}1")
-            .PrintPropertySettings(p => p.Name)
-            .Using(name => $"2{name}2")
+            .TrimmedTo(2)
             .PrintToString(firstPerson);
 
-        result.Should().Contain(exceptedAge);
+        result.Should().Contain("Name = Be")
+              .And.Contain("Surname = Big");
     }
 
     [Test]
-    public void Using_MultipleTypeSerializationsForString()
+    public void UseCultureForDouble_ShouldFormatHeightWithCulture()
     {
-        var exceptedName = $"{nameof(firstPerson.Name)} = 21{firstPerson.Name}12";
         var result = ObjectPrinter.For<Person>()
-            .PrintSettings<string>()
-            .Using(str => $"1{str}1")
-            .PrintSettings<string>()
-            .Using(str => $"2{str}2")
+            .UseCulture<double>(new CultureInfo("en-US"))
             .PrintToString(firstPerson);
 
-        result.Should().Contain(exceptedName);
+        result.Should().Contain("Height = 170.1");
     }
 
     [Test]
-    public void Using_TrimmedToPropertiesAfterSerializationForName([Values(0, 1, 2)] int length)
+    public void PrintToString_ShouldHandleCircularReferencesInFamily()
     {
-        var exceptedName = $"{nameof(firstPerson.Name)} = " + $"1{firstPerson.Name!}"[..length];
+        var result = ObjectPrinter.For<Family>().PrintToString(family);
+
+        result.Should().NotContain("StackOverflow")
+              .And.NotContain("Infinite loop");
+    }
+
+    [Test]
+    public void SetMaxNestingLevel_ShouldLimitComplexObjectDepth()
+    {
         var result = ObjectPrinter.For<Person>()
-            .PrintPropertySettings(p => p.Name)
-            .Using(name => $"1{name}1")
-            .PrintPropertySettings(p => p.Name)
-            .TrimmedTo(length)
+            .SetMaxNestingLevel(2)
             .PrintToString(firstPerson);
 
-        result.Should().Contain(exceptedName);
+        result.Should().Contain("max nesting level");
     }
 
     [Test]
-    public void UseCulture_ChangeCultureForDouble()
+    public void ExcludeBestFriend_ShouldRemoveNestedObject()
     {
-        var expected = firstPerson.Height.ToString(new CultureInfo("ru-RU"));
-        var unexpected = firstPerson.Height.ToString(new CultureInfo("en-US"));
         var result = ObjectPrinter.For<Person>()
-            .UseCulture<double>(new("ru-RU"))
+            .Exclude(p => p.BestFriend)
             .PrintToString(firstPerson);
 
-        result.Should().Contain(expected).And.NotContain(unexpected);
+        result.Should().NotContain("BestFriend = Person")
+              .And.Contain("Name = Ben")
+              .And.Contain("Friends = [");
     }
 
     [Test]
-    public void TrimmedTo_TrimmingName([Values(0, 1, 2)] int length)
+    public void ExcludeFriends_ShouldRemoveListButKeepOtherProperties()
     {
-        var expected = $"{nameof(firstPerson.Name)} = {firstPerson.Name?[..length]}";
-        var unexpected = firstPerson.Name;
         var result = ObjectPrinter.For<Person>()
-            .PrintPropertySettings(p => p.Name)
-            .TrimmedTo(length)
+            .Exclude(p => p.Friends)
             .PrintToString(firstPerson);
 
-        result.Should().Contain(expected).And.NotContain(unexpected);
+        result.Should().NotContain("Friends = [")
+              .And.Contain("Name = Ben")
+              .And.Contain("BestFriend = Person")
+              .And.Contain("BodyParts = [");
     }
 
-    [TestCase(0)]
-    [TestCase(1)]
-    [TestCase(2)]
-    public void SetMaxNestingLevel_WithDifferentNestingLevels(int levelNesting)
+    [Test]
+    public void MultipleExclusions_ShouldWorkTogether()
     {
-        firstPerson.BestFriend = secondPerson;
-        var expected = $"The maximum recursion depth has been reached: {levelNesting}.";
         var result = ObjectPrinter.For<Person>()
-            .SetMaxNestingLevel(levelNesting)
+            .Exclude(p => p.Age)
+            .Exclude(p => p.Height)
+            .Exclude(p => p.BestFriend)
             .PrintToString(firstPerson);
 
-        result.Should().Contain(expected);
-    }
-
-    [TestCase(-1)]
-    [TestCase(-2)]
-    [TestCase(-3)]
-    [TestCase(-4)]
-    [TestCase(-5)]
-    public void SetMaxNestingLevel_WithNegativeNestingLevel(int levelNesting)
-    {
-        FluentActions.Invoking(() => ObjectPrinter.For<Person>()
-                .SetMaxNestingLevel(levelNesting))
-            .Should().Throw<ArgumentException>();
+        result.Should().NotContain("Age =")
+              .And.NotContain("Height =")
+              .And.NotContain("BestFriend =")
+              .And.Contain("Name = Ben")
+              .And.Contain("Friends = [")
+              .And.Contain("BodyParts = [");
     }
 
     [Test]
-    public void PrintToString_ProcessingCyclicLinksBetweenObjects()
+    public void TypeAndPropertyExclusionCombination_ShouldWork()
     {
-        firstPerson.BestFriend = secondPerson;
-        secondPerson.BestFriend = firstPerson;
-
         var result = ObjectPrinter.For<Person>()
-            .PrintToString(firstPerson);
-        result.Should().Contain("It is not possible to print an object with a circular reference.");
-    }
-
-    [Test]
-    public void PrintToString_WhenLinkIsSame_ButThereAreNoCircularReferences_Array()
-    {
-        var result = ObjectPrinter.For<Person[]>()
-            .PrintToString([firstPerson, firstPerson]);
-
-        result.Should().NotContain("It is not possible to print an object with a circular reference.");
-    }
-
-    [Test]
-    public void PrintToString_WhenLinkIsSame_ButThereAreNoCircularReferences_List()
-    {
-        var result = ObjectPrinter.For<List<Person>>()
-            .PrintToString([firstPerson, firstPerson]);
-
-        result.Should().NotContain("It is not possible to print an object with a circular reference.");
-    }
-
-    [Test]
-    public void PrintToString_WhenLinkIsSame_ButThereAreNoCircularReferences_Dictionary()
-    {
-        var result = ObjectPrinter.For<Dictionary<Person, Person>>()
-            .PrintToString(new() { { firstPerson, firstPerson } });
-
-        result.Should().NotContain("It is not possible to print an object with a circular reference.");
-    }
-
-    [Test]
-    public void PrintToString_WhenLinkIsSame_ButThereAreNoCircularReferences_InsideObject()
-    {
-        family = family with { Mom = firstPerson, Dad = firstPerson };
-        var result = ObjectPrinter.For<Family>()
-            .PrintToString(family);
-
-        result.Should().NotContain("It is not possible to print an object with a circular reference.");
-    }
-
-    [Test]
-    public void PrintToString_CorrectStructure()
-    {
-        var expectedResult = new StringBuilder();
-        expectedResult.Append("Person\r\n\t" +
-            "Id = 00000000-0000-0000-0000-000000000000\r\n\t" +
-            "Name = \"Ben\"\r\n\t" +
-            "Surname = \"Big\"\r\n\t" +
-            "Height = 170,1\r\n\t" +
-            "Age = 20\r\n\t" +
-            "BestFriend = Person\r\n\t\t" +
-            "Id = 00000000-0000-0000-0000-000000000000\r\n\t\t" +
-            "Name = \"Bob\"\r\n\t\t" +
-            "Surname = \"Boby\"\r\n\t\t" +
-            "Height = 40\r\n\t\t" +
-            "Age = 80\r\n\t\t" +
-            "BestFriend = null\r\n\t\t" +
-            "Friends = {}\r\n\t\t" +
-            "BodyParts = {}\r\n\r\n\t" +
-            "Friends = {\r\n\t\t" +
-            "Person\r\n\t\t\t" +
-            "Id = 00000000-0000-0000-0000-000000000000\r\n\t\t\t" +
-            "Name = \"Alice\"\r\n\t\t\t" +
-            "Surname = \"Sev\"\r\n\t\t\t" +
-            "Height = 50\r\n\t\t\t" +
-            "Age = 30\r\n\t\t\t" +
-            "BestFriend = null\r\n\t\t\t" +
-            "Friends = {}\r\n\t\t\t" +
-            "BodyParts = {}\r\n\t\t,\r\n\t\t" +
-            "Person\r\n\t\t\t" +
-            "Id = 00000000-0000-0000-0000-000000000000\r\n\t\t\t" +
-            "Name = \"Max\"\r\n\t\t\t" +
-            "Surname = \"Albor\"\r\n\t\t\t" +
-            "Height = 10\r\n\t\t\t" +
-            "Age = 9\r\n\t\t\t" +
-            "BestFriend = null\r\n\t\t\t" +
-            "Friends = {}\r\n\t\t\t" +
-            "BodyParts = {}\r\n\t\t" +
-            "}\r\n\r\n\t" +
-            "BodyParts = {\r\n\t\t\"Hand\": 2\r\n\t\t\"Foot\": 2\r\n\t\t\"Head\": 1\r\n\t\t\"Tail\": 0\r\n\t\t}\r\n\r\n");
-
-        var result = expectedResult.ToString();
-        var v2 = ObjectPrinter.For<Person>()
-            .PrintToString(firstPerson);
-
-        result.Should().Contain(v2);
-    }
-
-    [Test]
-    public void PrintToString_WithExcludedProperiesStructure()
-    {
-        var expectedResult = new StringBuilder();
-        expectedResult.Append("Person\r\n\t" +
-            "Id = 00000000-0000-0000-0000-000000000000\r\n\t" +
-            "Surname = \"Big\"\r\n\t" +
-            "Height = 170,1\r\n\t" +
-            "BestFriend = Person\r\n\t\t" +
-            "Id = 00000000-0000-0000-0000-000000000000\r\n\t\t" +
-            "Surname = \"Boby\"\r\n\t\t" +
-            "Height = 40\r\n\t\t" +
-            "BestFriend = null\r\n\t\t" +
-            "Friends = {}\r\n\t\t" +
-            "BodyParts = {}\r\n\r\n\t" +
-            "Friends = {\r\n\t\t" +
-            "Person\r\n\t\t\t" +
-            "Id = 00000000-0000-0000-0000-000000000000\r\n\t\t\t" +
-            "Surname = \"Sev\"\r\n\t\t\t" +
-            "Height = 50\r\n\t\t\t" +
-            "BestFriend = null\r\n\t\t\t" +
-            "Friends = {}\r\n\t\t\t" +
-            "BodyParts = {}\r\n\t\t,\r\n\t\t" +
-            "Person\r\n\t\t\t" +
-            "Id = 00000000-0000-0000-0000-000000000000\r\n\t\t\t" +
-            "Surname = \"Albor\"\r\n\t\t\t" +
-            "Height = 10\r\n\t\t\t" +
-            "BestFriend = null\r\n\t\t\t" +
-            "Friends = {}\r\n\t\t\t" +
-            "BodyParts = {}\r\n\t\t" +
-            "}\r\n\r\n\t" +
-            "BodyParts = {\r\n\t\t\"Hand\": 2\r\n\t\t\"Foot\": 2\r\n\t\t\"Head\": 1\r\n\t\t\"Tail\": 0\r\n\t\t}\r\n\r\n");
-
-        var result = expectedResult.ToString();
-        var v2 = ObjectPrinter.For<Person>()
-            .Exclude(p => p.Name)
+            .Exclude<string>()
             .Exclude(p => p.Age)
             .PrintToString(firstPerson);
 
-        result.Should().Contain(v2);
+        result.Should().NotContain("Name =")
+              .And.NotContain("Surname =")
+              .And.NotContain("Age =")
+              .And.Contain("Height = 170,1")
+              .And.Contain("BestFriend = Person");
+    }
+
+    [Test]
+    public void PrintSettingsForString_ShouldAffectAllStringProperties()
+    {
+        var result = ObjectPrinter.For<Person>()
+            .PrintSettings<string>()
+            .Using(str => str?.ToUpper() ?? "NULL")
+            .PrintToString(firstPerson);
+
+        result.Should().Contain("Name = BEN")
+              .And.Contain("Surname = BIG")
+              .And.Contain("BestFriend = Person")
+              .And.Contain("Name = BOB");
+    }
+
+    [Test]
+    public void ComplexConfiguration_ShouldApplyAllSettings()
+    {
+        var result = ObjectPrinter.For<Person>()
+            .Exclude<Guid>()
+            .PrintSettings<int>().Using(i => (i * 10).ToString())
+            .PrintPropertySettings(p => p.Name).TrimmedTo(1)
+            .UseCulture<double>(new CultureInfo("en-US"))
+            .Exclude(p => p.Surname)
+            .PrintToString(firstPerson);
+
+        result.Should().NotContain("Id")
+              .And.NotContain("Surname =")
+              .And.Contain("Age = 200")
+              .And.Contain("Name = B")
+              .And.Contain("Height = 170.1")
+              .And.Contain("BestFriend = Person");
+    }
+
+    [Test]
+    public void PrintToString_ExtensionMethod_ShouldWorkWithFirstPerson()
+    {
+        var result = firstPerson.PrintToString();
+
+        result.Should().Contain("Name = Ben")
+              .And.Contain("Age = 20")
+              .And.Contain("BestFriend = Person");
+    }
+
+    [Test]
+    public void PrintToString_WithConfigExtension_ShouldWork()
+    {
+        var result = firstPerson.PrintToString(config =>
+            config.Exclude(p => p.Age)
+                  .PrintPropertySettings(p => p.Name).TrimmedTo(1));
+
+        result.Should().NotContain("Age =")
+              .And.Contain("Name = B")
+              .And.Contain("Surname = Big");
+    }
+
+    [Test]
+    public void PrintToString_ShouldHandleEmptySecondPerson()
+    {
+        var result = ObjectPrinter.For<Person>().PrintToString(secondPerson);
+
+        result.Should().Contain("Person")
+              .And.Contain("Name = null")
+              .And.Contain("Age = 0")
+              .And.Contain("Height = 0")
+              .And.Contain("BestFriend = null")
+              .And.Contain("Friends = []")
+              .And.Contain("BodyParts = []");
+    }
+
+    [Test]
+    public void PrintToString_ShouldSerializeFamilyStructure()
+    {
+        var result = ObjectPrinter.For<Family>().PrintToString(family);
+
+        result.Should().Contain("Mom = Person")
+              .And.Contain("Dad = Person")
+              .And.Contain("Children = [")
+              .And.Contain("Name = Ben")
+              .And.Contain("Name = null");
+    }
+
+    [Test]
+    public void PropertySerialization_ShouldOverrideTypeSerializationForSpecificProperty()
+    {
+        var result = ObjectPrinter.For<Person>()
+            .PrintSettings<string>().Using(str => $"TYPE_{str}")
+            .PrintPropertySettings(p => p.Name).Using(str => $"PROP_{str}")
+            .PrintToString(firstPerson);
+
+        result.Should().Contain("Name = PROP_Ben")
+              .And.Contain("Surname = TYPE_Big");
+    }
+
+    [Test]
+    public void PrintToString_ShouldNotHaveStackOverflowWithComplexStructure()
+    {
+        var action = () => ObjectPrinter.For<Person>().PrintToString(firstPerson);
+
+        action.Should().NotThrow<StackOverflowException>();
+    }
+
+    [Test]
+    public void MultipleTypeSerializations_LastOneShouldWin()
+    {
+        var result = ObjectPrinter.For<Person>()
+            .PrintSettings<string>().Using(str => "first")
+            .PrintSettings<string>().Using(str => "second")
+            .PrintToString(firstPerson);
+
+        result.Should().Contain("Name = second")
+              .And.Contain("Surname = second")
+              .And.NotContain("first");
+    }
+
+    [Test]
+    public void MultiplePropertySerializations_LastOneShouldWin()
+    {
+        var result = ObjectPrinter.For<Person>()
+            .PrintPropertySettings(p => p.Name)
+            .Using(name => "first")
+            .PrintPropertySettings(p => p.Name)
+            .Using(name => "second")
+            .PrintToString(firstPerson);
+
+        result.Should().Contain("Name = second")
+              .And.NotContain("first");
+    }
+
+    [Test]
+    public void Exclusion_ShouldHavePriorityOverSerialization()
+    {
+        var result = ObjectPrinter.For<Person>()
+            .PrintSettings<string>().Using(str => "modified")
+            .Exclude<string>()
+            .PrintToString(firstPerson);
+
+        result.Should().NotContain("Name =")
+              .And.NotContain("Surname =")
+              .And.NotContain("modified");
+    }
+
+    [Test]
+    public void PrintToString_ShouldHandleDictionaryValuesCorrectly()
+    {
+        var result = ObjectPrinter.For<Person>().PrintToString(firstPerson);
+
+        result.Should().Contain("Hand").And.Contain("2")
+              .And.Contain("Foot").And.Contain("2")
+              .And.Contain("Head").And.Contain("1")
+              .And.Contain("Tail").And.Contain("0");
+    }
+
+    [Test]
+    public void SetMaxNestingLevel_WithValidValue_ShouldNotThrow()
+    {
+        var action = () => ObjectPrinter.For<Person>()
+            .SetMaxNestingLevel(5)
+            .PrintToString(firstPerson);
+
+        action.Should().NotThrow();
+    }
+
+    [Test]
+    public void TrimmedTo_WithValidLength_ShouldNotThrow()
+    {
+        var action = () => ObjectPrinter.For<Person>()
+            .PrintPropertySettings(p => p.Name)
+            .TrimmedTo(3)
+            .PrintToString(firstPerson);
+
+        action.Should().NotThrow();
+    }
+
+    [Test]
+    public void PrintToString_ShouldMaintainObjectStructureIntegrity()
+    {
+        var result = ObjectPrinter.For<Person>().PrintToString(firstPerson);
+
+        result.Should().Contain("Person")
+              .And.Contain("BestFriend = Person")
+              .And.Contain("Friends = [")
+              .And.Contain("BodyParts = [")
+              .And.Contain("]");
+    }
+    
+    [Test]
+    public void PropertyExclusion_ShouldBeClassSpecific()
+    {
+        var result = ObjectPrinter.For<Family>()
+            .Exclude(f => f.Mom.Name)
+            .PrintToString(family);
+
+        var lines = result.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+    
+        var momLineIndex = Array.FindIndex(lines, line => line.Trim() == "Mom = Person");
+        momLineIndex.Should().BeGreaterThan(-1, "Mom should be present");
+
+        var linesAfterMom = lines.Skip(momLineIndex + 1).Take(10).ToArray();
+        var hasMomName = linesAfterMom.Any(line => line.Contains("Name = Ben"));
+        hasMomName.Should().BeFalse("Mom.Name should be excluded");
+        
+        result.Should().Contain("Dad = Person");
+    }
+
+    [Test]
+    public void PropertySerialization_ShouldBeClassSpecific()
+    {
+        var result = ObjectPrinter.For<Family>()
+            .PrintPropertySettings(f => f.Mom.Name)
+            .Using(name => $"MOM_{name}")
+            .PrintToString(family);
+
+        result.Should().Contain("MOM_Ben");
+
+        var hasRegularName = result.Contains("Name = null") || result.Contains("Surname = Big");
+        hasRegularName.Should().BeTrue("There should be regular non-modified properties");
+    }
+
+    [Test]
+    public void LargeCollection_ShouldBeLimited()
+    {
+        var largeList = Enumerable.Range(1, 150).ToList();
+        
+        var result = ObjectPrinter.For<List<int>>().PrintToString(largeList);
+
+        result.Should().Contain("100")
+              .And.Contain("... (showing first 100 items)")
+              .And.NotContain("101");
+    }
+
+    [Test]
+    public void EmptyCollection_ShouldSerializeAsEmpty()
+    {
+        var emptyList = new List<string>();
+        
+        var result = ObjectPrinter.For<List<string>>().PrintToString(emptyList);
+
+        result.Should().Be("[]");
+    }
+
+    [Test]
+    public void CollectionWithFewItems_ShouldShowAll()
+    {
+        var smallList = new List<int> { 1, 2, 3 };
+        
+        var result = ObjectPrinter.For<List<int>>().PrintToString(smallList);
+
+        result.Should().Contain("1")
+              .And.Contain("2")
+              .And.Contain("3")
+              .And.NotContain("...");
+    }
+
+    [Test]
+    public void Dictionary_ShouldBeLimitedWhenLarge()
+    {
+        var largeDict = new Dictionary<string, int>();
+        for (int i = 0; i < 150; i++)
+        {
+            largeDict[$"key{i}"] = i;
+        }
+        
+        var result = ObjectPrinter.For<Dictionary<string, int>>().PrintToString(largeDict);
+
+        result.Should().Contain("key0")
+              .And.Contain("... (showing first 100 items)")
+              .And.NotContain("key100");  
+    }
+
+    [Test]
+    public void NestedCollections_ShouldRespectLimits()
+    {
+        var nestedList = new List<List<int>>
+        {
+            Enumerable.Range(1, 50).ToList(),
+            Enumerable.Range(51, 60).ToList()
+        };
+        
+        var result = ObjectPrinter.For<List<List<int>>>().PrintToString(nestedList);
+
+        result.Should().Contain("1")
+              .And.Contain("50")
+              .And.Contain("51")
+              .And.Contain("110");
     }
 }

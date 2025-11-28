@@ -1,17 +1,21 @@
 using System;
+using System.Reflection;
 
 namespace ObjectPrinting;
 
-public class PropertyPrintingConfig<TPropType, TOwner>(PrintingConfig<TOwner> config, string propertyNameName)
-    : IPropertyPrintingConfig<TPropType, TOwner>
+public class PropertyPrintingConfig<TOwner, TPropType> : IPropertyPrintingConfig<TOwner, TPropType>
 {
-    private PrintingConfig<TOwner> Config { get; } = config;
-    private string PropertyName { get; } = propertyNameName;
+    private readonly PrintingConfig<TOwner> _parentConfig;
+    private readonly MemberInfo _memberInfo;
 
-    public PrintingConfig<TOwner> Using(Func<TPropType, string> func)
+    public PropertyPrintingConfig(PrintingConfig<TOwner> parentConfig, MemberInfo memberInfo)
     {
-        Config.AddPropertySerializer(PropertyName, func);
+        _parentConfig = parentConfig;
+        _memberInfo = memberInfo;
+    }
 
-        return Config;
+    public PrintingConfig<TOwner> Using(Func<TPropType, string> serializer)
+    {
+        return _parentConfig.WithMemberSerializer(_memberInfo, serializer);
     }
 }
